@@ -1,0 +1,307 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f7f7f8;
+  color: #1a1a1a;
+}
+
+.app-header {
+  background: #1a1a2e;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.logo {
+  color: white;
+  text-decoration: none;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.auth-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-email {
+  color: #cfcfe0;
+  font-size: 13px;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+h2 {
+  font-size: 18px;
+  margin: 32px 0 12px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 8px;
+}
+
+.card {
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  transition: box-shadow 0.15s ease;
+}
+
+.card:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.card a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.card-sub {
+  color: #666;
+  font-size: 13px;
+}
+
+.dia-block {
+  margin-bottom: 24px;
+}
+
+.dia-fecha {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1a1a2e;
+  margin-bottom: 8px;
+}
+
+.evento {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-left: 3px solid #3b82f6;
+  padding-left: 12px;
+  margin-bottom: 8px;
+}
+
+.evento-hora {
+  font-size: 13px;
+  color: #666;
+  min-width: 90px;
+  font-variant-numeric: tabular-nums;
+}
+
+.evento-info .titulo {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.evento-info .ubicacion {
+  font-size: 13px;
+  color: #666;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+}
+
+input, textarea {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+button {
+  background: #1a1a2e;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+button:hover {
+  background: #2a2a4a;
+}
+
+.error {
+  color: #d33;
+  font-size: 13px;
+}
+
+.empty {
+  color: #888;
+  font-size: 14px;
+  padding: 20px 0;
+}
+
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-link {
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-small {
+  padding: 6px 10px;
+  font-size: 12px;
+  margin-top: 0;
+  background: #e5e5e5;
+  color: #1a1a1a;
+}
+
+.btn-small:hover {
+  background: #d5d5d5;
+}
+
+.btn-secundario {
+  background: #e5e5e5;
+  color: #1a1a1a;
+}
+
+.btn-secundario:hover {
+  background: #d5d5d5;
+}
+
+.btn-danger {
+  background: #fde2e2;
+  color: #b42318;
+}
+
+.btn-danger:hover {
+  background: #fac9c9;
+}
+
+.edit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f9f9fb;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.dia-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.form-inline {
+  background: #f9f9fb;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.evento {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.evento-color {
+  width: 6px;
+  align-self: stretch;
+  border-radius: 3px;
+  min-height: 30px;
+}
+
+.evento .btn-row {
+  margin-left: auto;
+}
+
+.checklist-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.checklist-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.checklist-label input {
+  width: 16px;
+  height: 16px;
+}
+
+.tachado {
+  text-decoration: line-through;
+  color: #999;
+}
