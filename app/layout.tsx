@@ -16,7 +16,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <AuthProvider>
           <header className="app-header">
-            <a href="/" className="logo">✈️ Mis Viajes</a>
+            <div className="header-nav">
+              <a href="/" className="logo">✈️ Mis Viajes</a>
+              <a href="/categorias" className="nav-link">Categorías</a>
+            </div>
             <AuthHeader />
           </header>
           <main className="container">
