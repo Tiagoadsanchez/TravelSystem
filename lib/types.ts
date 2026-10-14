@@ -3,6 +3,7 @@ export interface Viaje {
   nombre: string;
   fecha_inicio: string;
   fecha_fin: string;
+  notas: string | null;
 }
 
 export interface Categoria {
@@ -20,6 +21,7 @@ export interface Evento {
   hora_fin: string | null;
   categoria_id: string | null;
   categorias: Categoria | null;
+  notas: string | null;
 }
 
 export interface Dia {
@@ -27,6 +29,7 @@ export interface Dia {
   viaje_id: string;
   fecha: string;
   titulo: string | null;
+  notas: string | null;
   eventos: Evento[];
 }
 

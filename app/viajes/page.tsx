@@ -8,9 +8,11 @@ import {
   actualizarViaje as actualizarViajeRemoto,
   eliminarViaje as eliminarViajeRemoto,
 } from "@/lib/data/viajes";
+import { useConfirm } from "@/components/ConfirmProvider";
 import type { Viaje } from "@/lib/types";
 
 export default function ViajesPage() {
+  const confirmar = useConfirm();
   const [viajes, setViajes] = useState<Viaje[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,10 +93,13 @@ export default function ViajesPage() {
   }
 
   async function eliminarViaje(id: string, nombreViaje: string) {
-    const confirmar = window.confirm(
-      `¿Eliminar el viaje "${nombreViaje}"? Esto borra también todos sus días y actividades. Esta acción no se puede deshacer.`
-    );
-    if (!confirmar) return;
+    const ok = await confirmar({
+      title: "Eliminar viaje",
+      message: `¿Eliminar "${nombreViaje}"? Se borran también todos sus días y actividades. No se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
 
     const { error } = await eliminarViajeRemoto(id);
     if (error) {

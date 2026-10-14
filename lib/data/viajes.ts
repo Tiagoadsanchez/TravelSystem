@@ -32,6 +32,10 @@ export async function actualizarViaje(id: string, datos: DatosViaje) {
   return supabase.from("viajes").update(datos).eq("id", id);
 }
 
+export async function actualizarNotasViaje(id: string, notas: string | null) {
+  return supabase.from("viajes").update({ notas }).eq("id", id);
+}
+
 export async function eliminarViaje(id: string) {
   return supabase.from("viajes").delete().eq("id", id);
 }

@@ -1,31 +1,62 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import CalendarView from "./CalendarView";
-import { obtenerViaje } from "@/lib/data/viajes";
+import { useConfirm } from "@/components/ConfirmProvider";
+import NotaModal from "@/components/NotaModal";
+import DayStrip from "@/components/viaje/DayStrip";
+import AgendaDia from "@/components/viaje/AgendaDia";
+import NotaCard from "@/components/viaje/NotaCard";
+import ChecklistCard from "@/components/viaje/ChecklistCard";
+import ResumenViaje from "@/components/viaje/ResumenViaje";
+import EventoModal from "@/components/viaje/EventoModal";
+import DiaModal from "@/components/viaje/DiaModal";
+import { fechaCorta, fechaLarga, hoyISO, sumarDias } from "@/lib/dates";
+import { obtenerViaje, actualizarNotasViaje } from "@/lib/data/viajes";
 import { listarCategorias } from "@/lib/data/categorias";
 import {
   listarDiasConEventos,
-  crearDia as crearDiaRemoto,
-  actualizarDia as actualizarDiaRemoto,
-  eliminarDia as eliminarDiaRemoto,
+  crearDia,
+  actualizarDia,
+  actualizarNotasDia,
+  eliminarDia,
 } from "@/lib/data/dias";
 import {
-  crearEvento as crearEventoRemoto,
-  actualizarEvento as actualizarEventoRemoto,
-  eliminarEvento as eliminarEventoRemoto,
+  crearEvento,
+  actualizarEvento,
+  actualizarNotasEvento,
+  eliminarEvento,
+  type DatosEvento,
 } from "@/lib/data/eventos";
 import {
   listarChecklist,
-  agregarItemChecklist as agregarItemChecklistRemoto,
-  actualizarItemChecklist as actualizarItemChecklistRemoto,
-  eliminarItemChecklist as eliminarItemChecklistRemoto,
+  agregarItemChecklist,
+  actualizarItemChecklist,
+  eliminarItemChecklist,
 } from "@/lib/data/checklist";
 import type { Viaje, Dia, Categoria, ChecklistItem, Evento } from "@/lib/types";
 
+type Vista = "agenda" | "mes" | "resumen";
+
+type ModalState =
+  | { tipo: "nota-viaje" }
+  | { tipo: "nota-dia"; diaId: string }
+  | { tipo: "nota-evento"; eventoId: string }
+  | { tipo: "dia-nuevo" }
+  | { tipo: "dia-editar"; diaId: string }
+  | { tipo: "evento-nuevo"; diaId: string }
+  | { tipo: "evento-editar"; eventoId: string };
+
+const VISTAS: { valor: Vista; etiqueta: string }[] = [
+  { valor: "agenda", etiqueta: "Agenda" },
+  { valor: "mes", etiqueta: "Mes" },
+  { valor: "resumen", etiqueta: "Resumen" },
+];
+
 export default function DetalleViaje() {
   const { id } = useParams<{ id: string }>();
+  const confirmar = useConfirm();
 
   const [viaje, setViaje] = useState<Viaje | null>(null);
   const [dias, setDias] = useState<Dia[]>([]);
@@ -33,510 +64,350 @@ export default function DetalleViaje() {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [vista, setVista] = useState<"lista" | "calendario">("lista");
+  const [vista, setVista] = useState<Vista>("agenda");
+  const [diaSelId, setDiaSelId] = useState<string | null>(null);
+  const [modal, setModal] = useState<ModalState | null>(null);
 
-  // formulario nuevo día
-  const [nuevaFecha, setNuevaFecha] = useState("");
-  const [nuevoTitulo, setNuevoTitulo] = useState("");
+  const hoy = hoyISO();
 
-  // edición de día
-  const [diaEditando, setDiaEditando] = useState<string | null>(null);
-  const [diaEditTitulo, setDiaEditTitulo] = useState("");
+  const cargarTodo = useCallback(async () => {
+    const [v, c, d, ch] = await Promise.all([
+      obtenerViaje(id),
+      listarCategorias(),
+      listarDiasConEventos(id),
+      listarChecklist(id),
+    ]);
 
-  // formulario nuevo evento (uno por día, controlado por diaFormAbierto)
-  const [diaFormAbierto, setDiaFormAbierto] = useState<string | null>(null);
-  const [evTitulo, setEvTitulo] = useState("");
-  const [evUbicacion, setEvUbicacion] = useState("");
-  const [evHoraInicio, setEvHoraInicio] = useState("");
-  const [evHoraFin, setEvHoraFin] = useState("");
-  const [evCategoria, setEvCategoria] = useState("");
-
-  // edición de evento
-  const [eventoEditando, setEventoEditando] = useState<string | null>(null);
-  const [evEditTitulo, setEvEditTitulo] = useState("");
-  const [evEditUbicacion, setEvEditUbicacion] = useState("");
-  const [evEditHoraInicio, setEvEditHoraInicio] = useState("");
-  const [evEditHoraFin, setEvEditHoraFin] = useState("");
-  const [evEditCategoria, setEvEditCategoria] = useState("");
-
-  // checklist
-  const [nuevoItem, setNuevoItem] = useState("");
-
-  async function cargarTodo() {
-    setLoading(true);
-
-    const { data: viajeData, error: errViaje } = await obtenerViaje(id);
-
-    if (errViaje) {
-      setError(errViaje.message);
+    if (v.error) {
+      setError(v.error.message);
       setLoading(false);
       return;
     }
-    setViaje(viajeData);
-
-    const { data: catsData } = await listarCategorias();
-    setCategorias(catsData);
-
-    const { data: diasData, error: errDias } = await listarDiasConEventos(id);
-
-    if (errDias) {
-      setError(errDias.message);
+    if (d.error) {
+      setError(d.error.message);
       setLoading(false);
       return;
     }
-    setDias(diasData || []);
 
-    const { data: checklistData } = await listarChecklist(id);
-    setChecklist(checklistData);
-
+    setError(null);
+    setViaje(v.data);
+    setCategorias(c.data);
+    setDias(d.data ?? []);
+    setChecklist(ch.data);
     setLoading(false);
-  }
+  }, [id]);
 
   useEffect(() => {
     if (id) cargarTodo();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, cargarTodo]);
+
+  // Mantiene un día seleccionado: hoy si está en el viaje, si no el próximo, si no el primero.
+  useEffect(() => {
+    if (dias.length === 0) {
+      if (diaSelId !== null) setDiaSelId(null);
+      return;
+    }
+    if (!dias.some((d) => d.id === diaSelId)) {
+      const elegido = dias.find((d) => d.fecha === hoy) ?? dias.find((d) => d.fecha >= hoy) ?? dias[0];
+      setDiaSelId(elegido.id);
+    }
+  }, [dias, diaSelId, hoy]);
+
+  const diaSel = useMemo(() => dias.find((d) => d.id === diaSelId) ?? null, [dias, diaSelId]);
+  const eventos = useMemo(() => dias.flatMap((d) => d.eventos), [dias]);
+  const diasConPlan = dias.filter((d) => d.eventos.length > 0).length;
+  const checklistHechos = checklist.filter((i) => i.completado).length;
+
+  const fechaSugerida =
+    dias.length > 0 ? sumarDias(dias[dias.length - 1].fecha, 1) : viaje?.fecha_inicio ?? hoy;
+
+  function cerrarModal() {
+    setModal(null);
+  }
+
+  // Cada guardado devuelve un mensaje de error, o null si salió bien (el modal lo muestra).
+  async function aplicar(resultado: { error: { message: string } | null }): Promise<string | null> {
+    if (resultado.error) return resultado.error.message;
+    await cargarTodo();
+    return null;
+  }
+
+  async function reportar(resultado: { error: { message: string } | null }) {
+    if (resultado.error) {
+      setError(resultado.error.message);
+      return;
+    }
+    await cargarTodo();
+  }
+
+  // ---------- NOTAS ----------
+
+  const guardarNotaViaje = async (texto: string) =>
+    aplicar(await actualizarNotasViaje(id, texto.trim() || null));
+
+  const guardarNotaDia = async (diaId: string, texto: string) =>
+    aplicar(await actualizarNotasDia(diaId, texto.trim() || null));
+
+  const guardarNotaEvento = async (eventoId: string, texto: string) =>
+    aplicar(await actualizarNotasEvento(eventoId, texto.trim() || null));
 
   // ---------- DÍAS ----------
 
-  async function agregarDia(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!nuevaFecha) {
-      setError("Elegí una fecha para el nuevo día.");
-      return;
-    }
-    const { error } = await crearDiaRemoto(id, nuevaFecha, nuevoTitulo || null);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setNuevaFecha("");
-    setNuevoTitulo("");
-    cargarTodo();
+  async function guardarDia(
+    editando: Dia | null,
+    valores: { fecha: string; titulo: string | null }
+  ): Promise<string | null> {
+    if (editando) return aplicar(await actualizarDia(editando.id, valores.titulo));
+
+    const res = await crearDia(id, valores.fecha, valores.titulo);
+    if (res.error) return res.error.message;
+    await cargarTodo();
+    if (res.data) setDiaSelId(res.data.id);
+    return null;
   }
 
-  function empezarEdicionDia(dia: Dia) {
-    setDiaEditando(dia.id);
-    setDiaEditTitulo(dia.titulo || "");
-  }
-
-  async function guardarEdicionDia(diaId: string) {
-    const { error } = await actualizarDiaRemoto(diaId, diaEditTitulo || null);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setDiaEditando(null);
-    cargarTodo();
-  }
-
-  async function eliminarDia(diaId: string, fecha: string) {
-    const confirmar = window.confirm(
-      `¿Eliminar el día ${fecha}? Esto borra también sus actividades cargadas.`
-    );
-    if (!confirmar) return;
-    const { error } = await eliminarDiaRemoto(diaId);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    cargarTodo();
-  }
-
-  // ---------- EVENTOS ----------
-
-  function abrirFormEvento(diaId: string) {
-    setDiaFormAbierto(diaFormAbierto === diaId ? null : diaId);
-    setEvTitulo("");
-    setEvUbicacion("");
-    setEvHoraInicio("");
-    setEvHoraFin("");
-    setEvCategoria("");
-  }
-
-  async function crearEvento(e: React.FormEvent, diaId: string) {
-    e.preventDefault();
-    setError(null);
-    if (!evTitulo) {
-      setError("El evento necesita al menos un título.");
-      return;
-    }
-    const { error } = await crearEventoRemoto(diaId, {
-      titulo: evTitulo,
-      ubicacion: evUbicacion || null,
-      hora_inicio: evHoraInicio || null,
-      hora_fin: evHoraFin || null,
-      categoria_id: evCategoria || null,
+  async function borrarDia(dia: Dia) {
+    const ok = await confirmar({
+      title: "Eliminar día",
+      message: `¿Eliminar el ${fechaLarga(dia.fecha).toLowerCase()}? Se borran también sus ${dia.eventos.length} actividades.`,
+      confirmLabel: "Eliminar",
+      danger: true,
     });
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setDiaFormAbierto(null);
-    cargarTodo();
+    if (!ok) return;
+    await reportar(await eliminarDia(dia.id));
   }
 
-  function empezarEdicionEvento(evento: Evento) {
-    setEventoEditando(evento.id);
-    setEvEditTitulo(evento.titulo);
-    setEvEditUbicacion(evento.ubicacion || "");
-    setEvEditHoraInicio(evento.hora_inicio || "");
-    setEvEditHoraFin(evento.hora_fin || "");
-    setEvEditCategoria(evento.categoria_id || "");
+  // ---------- ACTIVIDADES ----------
+
+  async function guardarEvento(
+    diaId: string,
+    editando: Evento | null,
+    datos: DatosEvento
+  ): Promise<string | null> {
+    if (editando) return aplicar(await actualizarEvento(editando.id, datos));
+    return aplicar(await crearEvento(diaId, datos));
   }
 
-  async function guardarEdicionEvento(eventoId: string) {
-    const { error } = await actualizarEventoRemoto(eventoId, {
-      titulo: evEditTitulo,
-      ubicacion: evEditUbicacion || null,
-      hora_inicio: evEditHoraInicio || null,
-      hora_fin: evEditHoraFin || null,
-      categoria_id: evEditCategoria || null,
+  async function borrarEvento(evento: Evento) {
+    const ok = await confirmar({
+      title: "Eliminar actividad",
+      message: `¿Eliminar "${evento.titulo}"? No se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      danger: true,
     });
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setEventoEditando(null);
-    cargarTodo();
-  }
-
-  async function eliminarEvento(eventoId: string) {
-    const confirmar = window.confirm("¿Eliminar esta actividad?");
-    if (!confirmar) return;
-    const { error } = await eliminarEventoRemoto(eventoId);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    cargarTodo();
+    if (!ok) return;
+    await reportar(await eliminarEvento(evento.id));
   }
 
   // ---------- CHECKLIST ----------
 
-  async function agregarItemChecklist(e: React.FormEvent) {
-    e.preventDefault();
-    if (!nuevoItem.trim()) return;
-    const { error } = await agregarItemChecklistRemoto(id, nuevoItem.trim());
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setNuevoItem("");
-    cargarTodo();
+  async function agregarItem(descripcion: string) {
+    await reportar(await agregarItemChecklist(id, descripcion));
   }
 
-  async function toggleItemChecklist(item: ChecklistItem) {
-    const { error } = await actualizarItemChecklistRemoto(item.id, !item.completado);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    cargarTodo();
+  async function alternarItem(item: ChecklistItem) {
+    await reportar(await actualizarItemChecklist(item.id, !item.completado));
   }
 
-  async function eliminarItemChecklist(itemId: string) {
-    const { error } = await eliminarItemChecklistRemoto(itemId);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    cargarTodo();
+  async function borrarItem(item: ChecklistItem) {
+    await reportar(await eliminarItemChecklist(item.id));
   }
+
+  // ---------- RENDER ----------
 
   if (loading) return <p className="empty">Cargando viaje...</p>;
   if (error && !viaje) return <p className="error">{error}</p>;
   if (!viaje) return <p className="empty">Viaje no encontrado.</p>;
 
+  const diaDeModal = (diaId: string) => dias.find((d) => d.id === diaId) ?? null;
+  const eventoDeModal = (eventoId: string) => eventos.find((e) => e.id === eventoId) ?? null;
+
   return (
     <div>
-      <h1>{viaje.nombre}</h1>
-      <p className="card-sub">
-        {viaje.fecha_inicio} → {viaje.fecha_fin}
-      </p>
+      <div className="trip-header">
+        <div>
+          <h1>{viaje.nombre}</h1>
+          <p className="card-sub">
+            {fechaCorta(viaje.fecha_inicio, true)} → {fechaCorta(viaje.fecha_fin, true)}
+          </p>
+        </div>
+        <div className="pill-tabs" role="tablist" aria-label="Vistas del viaje">
+          {VISTAS.map((v) => (
+            <button
+              key={v.valor}
+              type="button"
+              role="tab"
+              aria-selected={vista === v.valor}
+              className={"pill" + (vista === v.valor ? " active" : "")}
+              onClick={() => setVista(v.valor)}
+            >
+              {v.etiqueta}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="chip-row">
+        <span className="chip">
+          <strong>{eventos.length}</strong> actividades
+        </span>
+        <span className="chip">
+          <strong>{diasConPlan}</strong> de {dias.length} días con plan
+        </span>
+        <span className="chip">
+          checklist <strong>{checklistHechos}</strong> de {checklist.length}
+        </span>
+      </div>
 
       {error && <p className="error">{error}</p>}
 
-      <div className="btn-row" style={{ margin: "20px 0" }}>
-        <button
-          className={vista === "lista" ? "" : "btn-secundario"}
-          onClick={() => setVista("lista")}
-        >
-          Vista lista
-        </button>
-        <button
-          className={vista === "calendario" ? "" : "btn-secundario"}
-          onClick={() => setVista("calendario")}
-        >
-          Vista calendario
-        </button>
-      </div>
-
-      {vista === "calendario" && <CalendarView dias={dias} />}
-
-      {vista === "lista" && (
+      {vista === "agenda" && (
         <>
-          <h2>Cronograma</h2>
-          {dias.length === 0 && (
-            <p className="empty">Este viaje todavía no tiene días cargados.</p>
-          )}
+          <DayStrip
+            dias={dias}
+            selectedId={diaSelId}
+            hoy={hoy}
+            onSelect={setDiaSelId}
+            onAdd={() => setModal({ tipo: "dia-nuevo" })}
+          />
 
-          {dias.map((dia) => (
-            <div className="dia-block" key={dia.id}>
-              {diaEditando === dia.id ? (
-                <div className="edit-block">
-                  <label>Título del día</label>
-                  <input
-                    type="text"
-                    value={diaEditTitulo}
-                    onChange={(e) => setDiaEditTitulo(e.target.value)}
-                  />
-                  <div className="btn-row">
-                    <button onClick={() => guardarEdicionDia(dia.id)}>
-                      Guardar
-                    </button>
-                    <button
-                      className="btn-secundario"
-                      onClick={() => setDiaEditando(null)}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="dia-header">
-                  <div className="dia-fecha">
-                    {dia.fecha} {dia.titulo ? `— ${dia.titulo}` : ""}
-                  </div>
-                  <div className="btn-row">
-                    <button
-                      className="btn-small"
-                      onClick={() => abrirFormEvento(dia.id)}
-                    >
-                      + Actividad
-                    </button>
-                    <button
-                      className="btn-small"
-                      onClick={() => empezarEdicionDia(dia)}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      className="btn-small btn-danger"
-                      onClick={() => eliminarDia(dia.id, dia.fecha)}
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {diaFormAbierto === dia.id && (
-                <form
-                  className="form-inline"
-                  onSubmit={(e) => crearEvento(e, dia.id)}
-                >
-                  <label>Título</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Visita al Coliseo"
-                    value={evTitulo}
-                    onChange={(e) => setEvTitulo(e.target.value)}
-                  />
-                  <label>Ubicación (opcional)</label>
-                  <input
-                    type="text"
-                    value={evUbicacion}
-                    onChange={(e) => setEvUbicacion(e.target.value)}
-                  />
-                  <div className="form-row">
-                    <div>
-                      <label>Hora inicio</label>
-                      <input
-                        type="time"
-                        value={evHoraInicio}
-                        onChange={(e) => setEvHoraInicio(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label>Hora fin</label>
-                      <input
-                        type="time"
-                        value={evHoraFin}
-                        onChange={(e) => setEvHoraFin(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <label>Categoría</label>
-                  <select
-                    value={evCategoria}
-                    onChange={(e) => setEvCategoria(e.target.value)}
-                  >
-                    <option value="">Sin categoría</option>
-                    {categorias.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="submit">Guardar actividad</button>
-                </form>
-              )}
-
-              {dia.eventos.length === 0 && (
-                <p className="empty">Sin actividades cargadas para este día.</p>
-              )}
-
-              {dia.eventos.map((evento) =>
-                eventoEditando === evento.id ? (
-                  <div className="edit-block" key={evento.id}>
-                    <label>Título</label>
-                    <input
-                      type="text"
-                      value={evEditTitulo}
-                      onChange={(e) => setEvEditTitulo(e.target.value)}
-                    />
-                    <label>Ubicación</label>
-                    <input
-                      type="text"
-                      value={evEditUbicacion}
-                      onChange={(e) => setEvEditUbicacion(e.target.value)}
-                    />
-                    <div className="form-row">
-                      <div>
-                        <label>Hora inicio</label>
-                        <input
-                          type="time"
-                          value={evEditHoraInicio}
-                          onChange={(e) => setEvEditHoraInicio(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label>Hora fin</label>
-                        <input
-                          type="time"
-                          value={evEditHoraFin}
-                          onChange={(e) => setEvEditHoraFin(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <label>Categoría</label>
-                    <select
-                      value={evEditCategoria}
-                      onChange={(e) => setEvEditCategoria(e.target.value)}
-                    >
-                      <option value="">Sin categoría</option>
-                      {categorias.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.nombre}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="btn-row">
-                      <button onClick={() => guardarEdicionEvento(evento.id)}>
-                        Guardar
-                      </button>
-                      <button
-                        className="btn-secundario"
-                        onClick={() => setEventoEditando(null)}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="evento" key={evento.id}>
-                    <div
-                      className="evento-color"
-                      style={{
-                        backgroundColor: evento.categorias?.color || "#ccc",
-                      }}
-                    />
-                    <div className="evento-hora">
-                      {evento.hora_inicio || "--:--"}
-                      {evento.hora_fin ? ` - ${evento.hora_fin}` : ""}
-                    </div>
-                    <div className="evento-info">
-                      <div className="titulo">{evento.titulo}</div>
-                      {evento.ubicacion && (
-                        <div className="ubicacion">{evento.ubicacion}</div>
-                      )}
-                    </div>
-                    <div className="btn-row">
-                      <button
-                        className="btn-small"
-                        onClick={() => empezarEdicionEvento(evento)}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        className="btn-small btn-danger"
-                        onClick={() => eliminarEvento(evento.id)}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                )
-              )}
+          {dias.length === 0 ? (
+            <div className="panel">
+              <p className="empty">Este viaje todavía no tiene días. Agregá el primero con el botón &quot;Día&quot;.</p>
             </div>
-          ))}
-
-          <h2>Agregar día</h2>
-          <form onSubmit={agregarDia}>
-            <label>Fecha</label>
-            <input
-              type="date"
-              value={nuevaFecha}
-              onChange={(e) => setNuevaFecha(e.target.value)}
-            />
-            <label>Título (opcional)</label>
-            <input
-              type="text"
-              placeholder="Ej: Llegada a Roma"
-              value={nuevoTitulo}
-              onChange={(e) => setNuevoTitulo(e.target.value)}
-            />
-            <button type="submit">Agregar día</button>
-          </form>
+          ) : (
+            <div className="agenda-grid">
+              {diaSel && (
+                <AgendaDia
+                  dia={diaSel}
+                  onAddEvento={() => setModal({ tipo: "evento-nuevo", diaId: diaSel.id })}
+                  onEditEvento={(e) => setModal({ tipo: "evento-editar", eventoId: e.id })}
+                  onDeleteEvento={borrarEvento}
+                  onNotaEvento={(e) => setModal({ tipo: "nota-evento", eventoId: e.id })}
+                  onEditDia={() => setModal({ tipo: "dia-editar", diaId: diaSel.id })}
+                  onDeleteDia={() => borrarDia(diaSel)}
+                />
+              )}
+              <div className="side-col">
+                {diaSel && (
+                  <NotaCard
+                    titulo="Notas del día"
+                    texto={diaSel.notas}
+                    vacio="Sin notas para este día. Tocá el lápiz para anotar algo."
+                    onEditar={() => setModal({ tipo: "nota-dia", diaId: diaSel.id })}
+                  />
+                )}
+                <NotaCard
+                  titulo="Notas del viaje"
+                  texto={viaje.notas}
+                  vacio="Sin notas generales. Ideal para datos que valen para todo el viaje."
+                  onEditar={() => setModal({ tipo: "nota-viaje" })}
+                />
+                <ChecklistCard
+                  items={checklist}
+                  onToggle={alternarItem}
+                  onDelete={borrarItem}
+                  onAdd={agregarItem}
+                />
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      <h2>Checklist del viaje</h2>
-      {checklist.length === 0 && (
-        <p className="empty">Todavía no agregaste nada a la lista.</p>
+      {vista === "mes" && <CalendarView dias={dias} />}
+
+      {vista === "resumen" && (
+        <ResumenViaje dias={dias} categorias={categorias} checklist={checklist} />
       )}
-      {checklist.map((item) => (
-        <div className="checklist-item" key={item.id}>
-          <label className="checklist-label">
-            <input
-              type="checkbox"
-              checked={item.completado}
-              onChange={() => toggleItemChecklist(item)}
-            />
-            <span className={item.completado ? "tachado" : ""}>
-              {item.descripcion}
-            </span>
-          </label>
-          <button
-            className="btn-small btn-danger"
-            onClick={() => eliminarItemChecklist(item.id)}
-          >
-            Eliminar
-          </button>
-        </div>
-      ))}
-      <form onSubmit={agregarItemChecklist} style={{ marginTop: 12 }}>
-        <label>Nuevo ítem</label>
-        <input
-          type="text"
-          placeholder="Ej: Llevar cargador portátil"
-          value={nuevoItem}
-          onChange={(e) => setNuevoItem(e.target.value)}
+
+      {/* ---------- Modales (se montan solo cuando están abiertos) ---------- */}
+
+      {modal?.tipo === "nota-viaje" && (
+        <NotaModal
+          title="Notas del viaje"
+          subtitle={viaje.nombre}
+          initial={viaje.notas ?? null}
+          onSave={guardarNotaViaje}
+          onClose={cerrarModal}
         />
-        <button type="submit">Agregar a la lista</button>
-      </form>
+      )}
+
+      {modal?.tipo === "nota-dia" &&
+        (() => {
+          const dia = diaDeModal(modal.diaId);
+          return dia ? (
+            <NotaModal
+              title="Notas del día"
+              subtitle={fechaLarga(dia.fecha)}
+              initial={dia.notas ?? null}
+              onSave={(texto) => guardarNotaDia(dia.id, texto)}
+              onClose={cerrarModal}
+            />
+          ) : null;
+        })()}
+
+      {modal?.tipo === "nota-evento" &&
+        (() => {
+          const evento = eventoDeModal(modal.eventoId);
+          return evento ? (
+            <NotaModal
+              title={`Nota · ${evento.titulo}`}
+              initial={evento.notas ?? null}
+              onSave={(texto) => guardarNotaEvento(evento.id, texto)}
+              onClose={cerrarModal}
+            />
+          ) : null;
+        })()}
+
+      {modal?.tipo === "dia-nuevo" && (
+        <DiaModal
+          dia={null}
+          fechaSugerida={fechaSugerida}
+          onSave={(valores) => guardarDia(null, valores)}
+          onClose={cerrarModal}
+        />
+      )}
+
+      {modal?.tipo === "dia-editar" &&
+        (() => {
+          const dia = diaDeModal(modal.diaId);
+          return dia ? (
+            <DiaModal
+              dia={dia}
+              fechaSugerida={dia.fecha}
+              onSave={(valores) => guardarDia(dia, valores)}
+              onClose={cerrarModal}
+            />
+          ) : null;
+        })()}
+
+      {modal?.tipo === "evento-nuevo" &&
+        (() => {
+          const dia = diaDeModal(modal.diaId);
+          return dia ? (
+            <EventoModal
+              evento={null}
+              categorias={categorias}
+              subtitle={fechaLarga(dia.fecha)}
+              onSave={(datos) => guardarEvento(dia.id, null, datos)}
+              onClose={cerrarModal}
+            />
+          ) : null;
+        })()}
+
+      {modal?.tipo === "evento-editar" &&
+        (() => {
+          const evento = eventoDeModal(modal.eventoId);
+          return evento ? (
+            <EventoModal
+              evento={evento}
+              categorias={categorias}
+              onSave={(datos) => guardarEvento(evento.dia_id, evento, datos)}
+              onClose={cerrarModal}
+            />
+          ) : null;
+        })()}
     </div>
   );
 }

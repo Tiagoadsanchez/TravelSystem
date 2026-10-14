@@ -7,11 +7,13 @@ import {
   actualizarCategoria,
   eliminarCategoria,
 } from "@/lib/data/categorias";
+import { useConfirm } from "@/components/ConfirmProvider";
 import type { Categoria } from "@/lib/types";
 
-const COLOR_POR_DEFECTO = "#3b82f6";
+const COLOR_POR_DEFECTO = "#0e8c8c";
 
 export default function CategoriasPage() {
+  const confirmar = useConfirm();
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,10 +75,13 @@ export default function CategoriasPage() {
   }
 
   async function eliminar(id: string, nombreCat: string) {
-    const confirmar = window.confirm(
-      `¿Eliminar la categoría "${nombreCat}"? Los eventos que la usan quedarán sin categoría.`
-    );
-    if (!confirmar) return;
+    const ok = await confirmar({
+      title: "Eliminar categoría",
+      message: `¿Eliminar "${nombreCat}"? Las actividades que la usan quedarán sin categoría.`,
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     const { error } = await eliminarCategoria(id);
     if (error) {
       setError(error.message);

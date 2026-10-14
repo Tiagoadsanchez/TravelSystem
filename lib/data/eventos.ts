@@ -16,6 +16,10 @@ export async function actualizarEvento(eventoId: string, datos: DatosEvento) {
   return supabase.from("eventos").update(datos).eq("id", eventoId);
 }
 
+export async function actualizarNotasEvento(eventoId: string, notas: string | null) {
+  return supabase.from("eventos").update({ notas }).eq("id", eventoId);
+}
+
 export async function eliminarEvento(eventoId: string) {
   return supabase.from("eventos").delete().eq("id", eventoId);
 }

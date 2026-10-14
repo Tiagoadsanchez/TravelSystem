@@ -10,10 +10,11 @@ export async function listarDiasConEventos(viajeId: string) {
 
   if (error || !data) return { data: null, error };
 
+  // Las actividades sin hora van al final del día.
   const diasOrdenados = (data as Dia[]).map((dia) => ({
     ...dia,
     eventos: [...dia.eventos].sort((a, b) =>
-      (a.hora_inicio || "").localeCompare(b.hora_inicio || "")
+      (a.hora_inicio ?? "99:99").localeCompare(b.hora_inicio ?? "99:99")
     ),
   }));
 
@@ -21,11 +22,20 @@ export async function listarDiasConEventos(viajeId: string) {
 }
 
 export async function crearDia(viajeId: string, fecha: string, titulo: string | null) {
-  return supabase.from("dias").insert({ viaje_id: viajeId, fecha, titulo });
+  const { data, error } = await supabase
+    .from("dias")
+    .insert({ viaje_id: viajeId, fecha, titulo })
+    .select("id")
+    .single();
+  return { data: data as { id: string } | null, error };
 }
 
 export async function actualizarDia(diaId: string, titulo: string | null) {
   return supabase.from("dias").update({ titulo }).eq("id", diaId);
+}
+
+export async function actualizarNotasDia(diaId: string, notas: string | null) {
+  return supabase.from("dias").update({ notas }).eq("id", diaId);
 }
 
 export async function eliminarDia(diaId: string) {

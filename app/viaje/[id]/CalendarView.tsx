@@ -44,7 +44,7 @@ export default function CalendarView({ dias }: { dias: Dia[] }) {
         evento.hora_fin || evento.hora_inicio,
         "10:00:00"
       ),
-      color: evento.categorias?.color || "#3b82f6",
+      color: evento.categorias?.color || "#0e8c8c",
     }))
   );
 
