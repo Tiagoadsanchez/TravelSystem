@@ -45,6 +45,17 @@ export interface Viajero {
   notas: string | null;
 }
 
+export interface Gasto {
+  id: string;
+  viaje_id: string;
+  descripcion: string;
+  monto: number;
+  moneda: string;
+  fecha: string;
+  categoria_id: string | null;
+  pagado_por: string | null;
+}
+
 export interface ChecklistItem {
   id: string;
   viaje_id: string;

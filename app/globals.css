@@ -950,6 +950,31 @@ button.persona-row:hover {
   gap: 10px;
 }
 
+.filtros {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.filtros select {
+  min-width: 220px;
+  max-width: 100%;
+}
+
+.gasto-monto {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.monto-vista {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
 .btn-icon {
   display: inline-flex;
   align-items: center;
