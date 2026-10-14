@@ -14,6 +14,9 @@ interface ModalProps {
 // Usa el <dialog> nativo: maneja foco, Esc y el fondo oscuro sin librerías.
 export default function Modal({ open, title, onClose, children, footer }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Si el mouse se aprieta adentro (ej: seleccionando texto de un campo) y se suelta afuera,
+  // el navegador dispara un "click" sobre el fondo. Solo cerramos si el clic empezó en el fondo.
+  const apretoEnElFondo = useRef(false);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -30,8 +33,13 @@ export default function Modal({ open, title, onClose, children, footer }: ModalP
         e.preventDefault();
         onClose();
       }}
+      onMouseDown={(e) => {
+        apretoEnElFondo.current = e.target === ref.current;
+      }}
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        const cierraPorFondo = apretoEnElFondo.current && e.target === ref.current;
+        apretoEnElFondo.current = false;
+        if (cierraPorFondo) onClose();
       }}
     >
       {open && (

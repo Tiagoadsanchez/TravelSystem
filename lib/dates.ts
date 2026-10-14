@@ -31,6 +31,12 @@ export function sumarDias(fecha: string, n: number): string {
   return fechaISO(d);
 }
 
+// Todas las fechas entre dos días, inclusive. El tope evita bucles enormes si hay datos mal cargados.
+export function rangoFechas(desde: string, hasta: string, maximo = 366): string[] {
+  const total = Math.min(diasEntre(desde, hasta) + 1, maximo);
+  return Array.from({ length: Math.max(total, 0) }, (_, i) => sumarDias(desde, i));
+}
+
 function formatear(fecha: string, opciones: Intl.DateTimeFormatOptions): string {
   return fechaLocal(fecha).toLocaleDateString("es", opciones).replace(/[.,]/g, "");
 }
@@ -47,6 +53,16 @@ export function fechaCorta(fecha: string, conAnio = false): string {
 export function fechaLarga(fecha: string): string {
   const texto = formatear(fecha, { weekday: "long", day: "numeric", month: "long" });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+export function edad(nacimiento: string, referencia: string = hoyISO()): number {
+  const n = fechaLocal(nacimiento);
+  const r = fechaLocal(referencia);
+  let anios = r.getFullYear() - n.getFullYear();
+  const aunNoCumplio =
+    r.getMonth() < n.getMonth() || (r.getMonth() === n.getMonth() && r.getDate() < n.getDate());
+  if (aunNoCumplio) anios -= 1;
+  return anios;
 }
 
 // "09:00:00" -> "09:00"

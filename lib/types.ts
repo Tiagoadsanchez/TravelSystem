@@ -33,6 +33,18 @@ export interface Dia {
   eventos: Evento[];
 }
 
+export interface Viajero {
+  id: string;
+  nombre: string;
+  email: string | null;
+  telefono: string | null;
+  fecha_nacimiento: string | null;
+  documento_tipo: string | null;
+  documento_numero: string | null;
+  contacto_emergencia: string | null;
+  notas: string | null;
+}
+
 export interface ChecklistItem {
   id: string;
   viaje_id: string;

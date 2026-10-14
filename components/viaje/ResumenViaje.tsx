@@ -4,6 +4,7 @@ import { fechaCorta } from "@/lib/dates";
 import type { Categoria, ChecklistItem, Dia } from "@/lib/types";
 
 interface ResumenViajeProps {
+  fechas: string[]; // todas las fechas del viaje, tengan o no actividades
   dias: Dia[];
   categorias: Categoria[];
   checklist: ChecklistItem[];
@@ -12,10 +13,11 @@ interface ResumenViajeProps {
 const COLOR_SIN_CATEGORIA = "#9bb5b8";
 const MAX_DIAS_VACIOS = 12;
 
-export default function ResumenViaje({ dias, categorias, checklist }: ResumenViajeProps) {
+export default function ResumenViaje({ fechas, dias, categorias, checklist }: ResumenViajeProps) {
   const eventos = dias.flatMap((d) => d.eventos);
-  const diasConPlan = dias.filter((d) => d.eventos.length > 0).length;
-  const diasVacios = dias.filter((d) => d.eventos.length === 0);
+  const conActividades = new Set(dias.filter((d) => d.eventos.length > 0).map((d) => d.fecha));
+  const diasConPlan = fechas.filter((f) => conActividades.has(f)).length;
+  const diasVacios = fechas.filter((f) => !conActividades.has(f));
   const checklistHechos = checklist.filter((i) => i.completado).length;
 
   const conteo = new Map<string, number>();
@@ -46,7 +48,7 @@ export default function ResumenViaje({ dias, categorias, checklist }: ResumenVia
         <div className="metric">
           <div className="metric-value">
             {diasConPlan}
-            <span className="metric-of"> de {dias.length}</span>
+            <span className="metric-of"> de {fechas.length}</span>
           </div>
           <div className="metric-label">Días con plan</div>
         </div>
@@ -78,15 +80,12 @@ export default function ResumenViaje({ dias, categorias, checklist }: ResumenVia
 
       <div className="panel" style={{ marginTop: 16 }}>
         <h2 className="panel-title">Días sin actividades</h2>
-        {dias.length === 0 && <p className="empty">Todavía no cargaste días.</p>}
-        {dias.length > 0 && diasVacios.length === 0 && (
-          <p className="empty">Todos tus días tienen plan.</p>
-        )}
+        {diasVacios.length === 0 && <p className="empty">Todos tus días tienen plan.</p>}
         {diasVacios.length > 0 && (
           <div className="chip-row">
-            {diasVacios.slice(0, MAX_DIAS_VACIOS).map((d) => (
-              <span className="chip" key={d.id}>
-                {fechaCorta(d.fecha)}
+            {diasVacios.slice(0, MAX_DIAS_VACIOS).map((fecha) => (
+              <span className="chip" key={fecha}>
+                {fechaCorta(fecha)}
               </span>
             ))}
             {diasVacios.length > MAX_DIAS_VACIOS && (

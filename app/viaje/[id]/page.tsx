@@ -9,10 +9,13 @@ import DayStrip from "@/components/viaje/DayStrip";
 import AgendaDia from "@/components/viaje/AgendaDia";
 import NotaCard from "@/components/viaje/NotaCard";
 import ChecklistCard from "@/components/viaje/ChecklistCard";
+import ViajerosCard from "@/components/viaje/ViajerosCard";
+import ViajerosViajeModal from "@/components/viaje/ViajerosViajeModal";
+import ViajeroModal from "@/components/viajeros/ViajeroModal";
 import ResumenViaje from "@/components/viaje/ResumenViaje";
 import EventoModal from "@/components/viaje/EventoModal";
 import DiaModal from "@/components/viaje/DiaModal";
-import { fechaCorta, fechaLarga, hoyISO, sumarDias } from "@/lib/dates";
+import { fechaCorta, fechaLarga, hoyISO, rangoFechas } from "@/lib/dates";
 import { obtenerViaje, actualizarNotasViaje } from "@/lib/data/viajes";
 import { listarCategorias } from "@/lib/data/categorias";
 import {
@@ -35,7 +38,14 @@ import {
   actualizarItemChecklist,
   eliminarItemChecklist,
 } from "@/lib/data/checklist";
-import type { Viaje, Dia, Categoria, ChecklistItem, Evento } from "@/lib/types";
+import {
+  listarViajeros,
+  listarIdsViajerosDeViaje,
+  asignarViajeros,
+  actualizarViajero,
+  type DatosViajero,
+} from "@/lib/data/viajeros";
+import type { Viaje, Dia, Categoria, ChecklistItem, Evento, Viajero } from "@/lib/types";
 
 type Vista = "agenda" | "mes" | "resumen";
 
@@ -43,10 +53,11 @@ type ModalState =
   | { tipo: "nota-viaje" }
   | { tipo: "nota-dia"; diaId: string }
   | { tipo: "nota-evento"; eventoId: string }
-  | { tipo: "dia-nuevo" }
   | { tipo: "dia-editar"; diaId: string }
   | { tipo: "evento-nuevo"; diaId: string }
-  | { tipo: "evento-editar"; eventoId: string };
+  | { tipo: "evento-editar"; eventoId: string }
+  | { tipo: "viajeros-viaje" }
+  | { tipo: "viajero-ver"; viajeroId: string };
 
 const VISTAS: { valor: Vista; etiqueta: string }[] = [
   { valor: "agenda", etiqueta: "Agenda" },
@@ -62,20 +73,24 @@ export default function DetalleViaje() {
   const [dias, setDias] = useState<Dia[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [viajeros, setViajeros] = useState<Viajero[]>([]);
+  const [viajeroIds, setViajeroIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>("agenda");
-  const [diaSelId, setDiaSelId] = useState<string | null>(null);
+  const [fechaSel, setFechaSel] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const hoy = hoyISO();
 
   const cargarTodo = useCallback(async () => {
-    const [v, c, d, ch] = await Promise.all([
+    const [v, c, d, ch, vj, vjIds] = await Promise.all([
       obtenerViaje(id),
       listarCategorias(),
       listarDiasConEventos(id),
       listarChecklist(id),
+      listarViajeros(),
+      listarIdsViajerosDeViaje(id),
     ]);
 
     if (v.error) {
@@ -94,6 +109,9 @@ export default function DetalleViaje() {
     setCategorias(c.data);
     setDias(d.data ?? []);
     setChecklist(ch.data);
+    // Si todavía no corriste supabase_viajeros.sql, estas listas llegan vacías y el resto sigue andando.
+    setViajeros(vj.error ? [] : vj.data);
+    setViajeroIds(vjIds.error ? [] : vjIds.data);
     setLoading(false);
   }, [id]);
 
@@ -101,25 +119,25 @@ export default function DetalleViaje() {
     if (id) cargarTodo();
   }, [id, cargarTodo]);
 
-  // Mantiene un día seleccionado: hoy si está en el viaje, si no el próximo, si no el primero.
+  // Al abrir el viaje se selecciona hoy (si cae dentro del viaje) o el primer día.
   useEffect(() => {
-    if (dias.length === 0) {
-      if (diaSelId !== null) setDiaSelId(null);
-      return;
-    }
-    if (!dias.some((d) => d.id === diaSelId)) {
-      const elegido = dias.find((d) => d.fecha === hoy) ?? dias.find((d) => d.fecha >= hoy) ?? dias[0];
-      setDiaSelId(elegido.id);
-    }
-  }, [dias, diaSelId, hoy]);
+    if (!viaje || fechaSel !== null) return;
+    const hoyEnViaje = hoy >= viaje.fecha_inicio && hoy <= viaje.fecha_fin;
+    setFechaSel(hoyEnViaje ? hoy : viaje.fecha_inicio);
+  }, [viaje, fechaSel, hoy]);
 
-  const diaSel = useMemo(() => dias.find((d) => d.id === diaSelId) ?? null, [dias, diaSelId]);
+  // La tira muestra todas las fechas del viaje, y también las de días cargados fuera de ese rango.
+  const fechas = useMemo(() => {
+    if (!viaje) return [];
+    const todas = new Set([...rangoFechas(viaje.fecha_inicio, viaje.fecha_fin), ...dias.map((d) => d.fecha)]);
+    return Array.from(todas).sort();
+  }, [viaje, dias]);
+
+  const diasPorFecha = useMemo(() => new Map(dias.map((d) => [d.fecha, d])), [dias]);
+  const diaSel = fechaSel ? diasPorFecha.get(fechaSel) ?? null : null;
   const eventos = useMemo(() => dias.flatMap((d) => d.eventos), [dias]);
-  const diasConPlan = dias.filter((d) => d.eventos.length > 0).length;
+  const diasConPlan = fechas.filter((f) => (diasPorFecha.get(f)?.eventos.length ?? 0) > 0).length;
   const checklistHechos = checklist.filter((i) => i.completado).length;
-
-  const fechaSugerida =
-    dias.length > 0 ? sumarDias(dias[dias.length - 1].fecha, 1) : viaje?.fecha_inicio ?? hoy;
 
   function cerrarModal() {
     setModal(null);
@@ -153,18 +171,18 @@ export default function DetalleViaje() {
 
   // ---------- DÍAS ----------
 
-  async function guardarDia(
-    editando: Dia | null,
-    valores: { fecha: string; titulo: string | null }
-  ): Promise<string | null> {
-    if (editando) return aplicar(await actualizarDia(editando.id, valores.titulo));
-
-    const res = await crearDia(id, valores.fecha, valores.titulo);
-    if (res.error) return res.error.message;
+  // Un día "existe" en la base recién cuando empezás a planearlo.
+  async function empezarDia(fecha: string) {
+    const res = await crearDia(id, fecha, null);
+    if (res.error) {
+      setError(res.error.message);
+      return;
+    }
     await cargarTodo();
-    if (res.data) setDiaSelId(res.data.id);
-    return null;
   }
+
+  const guardarTituloDia = async (diaId: string, titulo: string | null) =>
+    aplicar(await actualizarDia(diaId, titulo));
 
   async function borrarDia(dia: Dia) {
     const ok = await confirmar({
@@ -198,6 +216,14 @@ export default function DetalleViaje() {
     if (!ok) return;
     await reportar(await eliminarEvento(evento.id));
   }
+
+  // ---------- VIAJEROS ----------
+
+  const guardarViajerosViaje = async (ids: string[]) =>
+    aplicar(await asignarViajeros(id, ids, viajeroIds));
+
+  const guardarViajero = async (viajeroId: string, datos: DatosViajero) =>
+    aplicar(await actualizarViajero(viajeroId, datos));
 
   // ---------- CHECKLIST ----------
 
@@ -252,7 +278,7 @@ export default function DetalleViaje() {
           <strong>{eventos.length}</strong> actividades
         </span>
         <span className="chip">
-          <strong>{diasConPlan}</strong> de {dias.length} días con plan
+          <strong>{diasConPlan}</strong> de {fechas.length} días con plan
         </span>
         <span className="chip">
           checklist <strong>{checklistHechos}</strong> de {checklist.length}
@@ -264,61 +290,72 @@ export default function DetalleViaje() {
       {vista === "agenda" && (
         <>
           <DayStrip
-            dias={dias}
-            selectedId={diaSelId}
+            fechas={fechas}
+            diasPorFecha={diasPorFecha}
+            selected={fechaSel}
             hoy={hoy}
-            onSelect={setDiaSelId}
-            onAdd={() => setModal({ tipo: "dia-nuevo" })}
+            onSelect={setFechaSel}
           />
 
-          {dias.length === 0 ? (
-            <div className="panel">
-              <p className="empty">Este viaje todavía no tiene días. Agregá el primero con el botón &quot;Día&quot;.</p>
-            </div>
-          ) : (
-            <div className="agenda-grid">
+          <div className="agenda-grid">
+            {diaSel ? (
+              <AgendaDia
+                dia={diaSel}
+                onAddEvento={() => setModal({ tipo: "evento-nuevo", diaId: diaSel.id })}
+                onEditEvento={(e) => setModal({ tipo: "evento-editar", eventoId: e.id })}
+                onDeleteEvento={borrarEvento}
+                onNotaEvento={(e) => setModal({ tipo: "nota-evento", eventoId: e.id })}
+                onEditDia={() => setModal({ tipo: "dia-editar", diaId: diaSel.id })}
+                onDeleteDia={() => borrarDia(diaSel)}
+              />
+            ) : (
+              fechaSel && (
+                <div className="panel">
+                  <div className="panel-header">
+                    <h2 className="panel-title">{fechaLarga(fechaSel)}</h2>
+                  </div>
+                  <p className="empty">Todavía no planeaste este día.</p>
+                  <button type="button" onClick={() => empezarDia(fechaSel)}>
+                    Empezar a planear este día
+                  </button>
+                </div>
+              )
+            )}
+            <div className="side-col">
               {diaSel && (
-                <AgendaDia
-                  dia={diaSel}
-                  onAddEvento={() => setModal({ tipo: "evento-nuevo", diaId: diaSel.id })}
-                  onEditEvento={(e) => setModal({ tipo: "evento-editar", eventoId: e.id })}
-                  onDeleteEvento={borrarEvento}
-                  onNotaEvento={(e) => setModal({ tipo: "nota-evento", eventoId: e.id })}
-                  onEditDia={() => setModal({ tipo: "dia-editar", diaId: diaSel.id })}
-                  onDeleteDia={() => borrarDia(diaSel)}
+                <NotaCard
+                  titulo="Notas del día"
+                  texto={diaSel.notas}
+                  vacio="Sin notas para este día. Tocá el lápiz para anotar algo."
+                  onEditar={() => setModal({ tipo: "nota-dia", diaId: diaSel.id })}
                 />
               )}
-              <div className="side-col">
-                {diaSel && (
-                  <NotaCard
-                    titulo="Notas del día"
-                    texto={diaSel.notas}
-                    vacio="Sin notas para este día. Tocá el lápiz para anotar algo."
-                    onEditar={() => setModal({ tipo: "nota-dia", diaId: diaSel.id })}
-                  />
-                )}
-                <NotaCard
-                  titulo="Notas del viaje"
-                  texto={viaje.notas}
-                  vacio="Sin notas generales. Ideal para datos que valen para todo el viaje."
-                  onEditar={() => setModal({ tipo: "nota-viaje" })}
-                />
-                <ChecklistCard
-                  items={checklist}
-                  onToggle={alternarItem}
-                  onDelete={borrarItem}
-                  onAdd={agregarItem}
-                />
-              </div>
+              <NotaCard
+                titulo="Notas del viaje"
+                texto={viaje.notas}
+                vacio="Sin notas generales. Ideal para datos que valen para todo el viaje."
+                onEditar={() => setModal({ tipo: "nota-viaje" })}
+              />
+              <ViajerosCard
+                viajeros={viajeros.filter((v) => viajeroIds.includes(v.id))}
+                onGestionar={() => setModal({ tipo: "viajeros-viaje" })}
+                onVer={(v) => setModal({ tipo: "viajero-ver", viajeroId: v.id })}
+              />
+              <ChecklistCard
+                items={checklist}
+                onToggle={alternarItem}
+                onDelete={borrarItem}
+                onAdd={agregarItem}
+              />
             </div>
-          )}
+          </div>
         </>
       )}
 
       {vista === "mes" && <CalendarView dias={dias} />}
 
       {vista === "resumen" && (
-        <ResumenViaje dias={dias} categorias={categorias} checklist={checklist} />
+        <ResumenViaje fechas={fechas} dias={dias} categorias={categorias} checklist={checklist} />
       )}
 
       {/* ---------- Modales (se montan solo cuando están abiertos) ---------- */}
@@ -360,23 +397,13 @@ export default function DetalleViaje() {
           ) : null;
         })()}
 
-      {modal?.tipo === "dia-nuevo" && (
-        <DiaModal
-          dia={null}
-          fechaSugerida={fechaSugerida}
-          onSave={(valores) => guardarDia(null, valores)}
-          onClose={cerrarModal}
-        />
-      )}
-
       {modal?.tipo === "dia-editar" &&
         (() => {
           const dia = diaDeModal(modal.diaId);
           return dia ? (
             <DiaModal
               dia={dia}
-              fechaSugerida={dia.fecha}
-              onSave={(valores) => guardarDia(dia, valores)}
+              onSave={(titulo) => guardarTituloDia(dia.id, titulo)}
               onClose={cerrarModal}
             />
           ) : null;
@@ -391,6 +418,27 @@ export default function DetalleViaje() {
               categorias={categorias}
               subtitle={fechaLarga(dia.fecha)}
               onSave={(datos) => guardarEvento(dia.id, null, datos)}
+              onClose={cerrarModal}
+            />
+          ) : null;
+        })()}
+
+      {modal?.tipo === "viajeros-viaje" && (
+        <ViajerosViajeModal
+          todos={viajeros}
+          seleccionados={viajeroIds}
+          onSave={guardarViajerosViaje}
+          onClose={cerrarModal}
+        />
+      )}
+
+      {modal?.tipo === "viajero-ver" &&
+        (() => {
+          const viajero = viajeros.find((v) => v.id === modal.viajeroId);
+          return viajero ? (
+            <ViajeroModal
+              viajero={viajero}
+              onSave={(datos) => guardarViajero(viajero.id, datos)}
               onClose={cerrarModal}
             />
           ) : null;

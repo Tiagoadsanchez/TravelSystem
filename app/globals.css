@@ -723,11 +723,51 @@ a.hero:hover {
   border-color: var(--primary);
 }
 
+.day-strip-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+
 .day-strip {
+  flex: 1;
+  min-width: 0;
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 14px 2px 12px;
+  padding: 10px 2px;
+  scrollbar-width: none;
+}
+
+.day-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.strip-arrow {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--surface);
+  color: var(--primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+}
+
+.strip-arrow:hover:not(:disabled) {
+  background: var(--primary-soft);
+}
+
+.strip-arrow:disabled {
+  opacity: 0.35;
+}
+
+.day-chip.vacio:not(.selected) .num {
+  color: var(--text-2);
 }
 
 .day-chip {
@@ -803,12 +843,6 @@ a.hero:hover {
   line-height: 1;
 }
 
-.day-chip-add {
-  justify-content: center;
-  border-style: dashed;
-  color: var(--primary);
-}
-
 .agenda-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
@@ -853,6 +887,73 @@ a.hero:hover {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sand);
+  color: var(--note-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.persona-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 6px;
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-weight: 400;
+}
+
+button.persona-row:hover {
+  background: var(--primary-soft);
+}
+
+.persona-row.static {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+}
+
+.persona-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.persona-nombre {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.persona-sub {
+  font-size: 12px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .timeline-row {

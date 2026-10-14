@@ -6,31 +6,21 @@ import { fechaLarga } from "@/lib/dates";
 import type { Dia } from "@/lib/types";
 
 interface DiaModalProps {
-  dia: Dia | null; // null = día nuevo
-  fechaSugerida: string;
-  onSave: (valores: { fecha: string; titulo: string | null }) => Promise<string | null>;
+  dia: Dia;
+  onSave: (titulo: string | null) => Promise<string | null>;
   onClose: () => void;
 }
 
-export default function DiaModal({ dia, fechaSugerida, onSave, onClose }: DiaModalProps) {
-  const fechaInicial = dia?.fecha ?? fechaSugerida;
-  const tituloInicial = dia?.titulo ?? "";
-
-  const [fecha, setFecha] = useState(fechaInicial);
-  const [titulo, setTitulo] = useState(tituloInicial);
+export default function DiaModal({ dia, onSave, onClose }: DiaModalProps) {
+  const original = dia.titulo ?? "";
+  const [titulo, setTitulo] = useState(original);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dirty = fecha !== fechaInicial || titulo !== tituloInicial;
-
   async function guardar() {
-    if (!fecha) {
-      setError("Elegí una fecha para el día.");
-      return;
-    }
     setSaving(true);
     setError(null);
-    const fallo = await onSave({ fecha, titulo: titulo.trim() || null });
+    const fallo = await onSave(titulo.trim() || null);
     setSaving(false);
     if (fallo) {
       setError(fallo);
@@ -41,20 +31,14 @@ export default function DiaModal({ dia, fechaSugerida, onSave, onClose }: DiaMod
 
   return (
     <FormModal
-      title={dia ? "Editar día" : "Agregar día"}
-      subtitle={dia ? fechaLarga(dia.fecha) : undefined}
-      dirty={dirty}
+      title="Editar día"
+      subtitle={fechaLarga(dia.fecha)}
+      dirty={titulo !== original}
       saving={saving}
       error={error}
       onClose={onClose}
       onSubmit={guardar}
     >
-      {!dia && (
-        <>
-          <label>Fecha</label>
-          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-        </>
-      )}
       <label>Título (opcional)</label>
       <input
         type="text"

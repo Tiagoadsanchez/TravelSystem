@@ -1,4 +1,4 @@
-import { House, Map, Tag, type LucideIcon } from "lucide-react";
+import { House, Map, Tag, Users, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -28,7 +28,10 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: "Gestión",
-    items: [{ href: "/categorias", label: "Categorías", icon: Tag }],
+    items: [
+      { href: "/viajeros", label: "Viajeros", icon: Users },
+      { href: "/categorias", label: "Categorías", icon: Tag },
+    ],
   },
 ];
 
