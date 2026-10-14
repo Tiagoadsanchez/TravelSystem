@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AuthProvider } from "@/lib/AuthProvider";
 import AuthGate from "@/components/AuthGate";
-import AuthHeader from "@/components/AuthHeader";
+import Sidebar from "@/components/Sidebar";
 
 export const metadata: Metadata = {
   title: "Planificador de Viajes",
@@ -15,16 +15,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="es">
       <body>
         <AuthProvider>
-          <header className="app-header">
-            <div className="header-nav">
-              <a href="/" className="logo">✈️ Mis Viajes</a>
-              <a href="/categorias" className="nav-link">Categorías</a>
-            </div>
-            <AuthHeader />
-          </header>
-          <main className="container">
-            <AuthGate>{children}</AuthGate>
-          </main>
+          <div className="app-shell">
+            <Sidebar />
+            <main className="main-content">
+              <AuthGate>{children}</AuthGate>
+            </main>
+          </div>
         </AuthProvider>
       </body>
     </html>
